@@ -1,0 +1,42 @@
+name: Run Polymarket Bot
+
+on:
+  schedule:
+    # Runs every 60 minutes (hourly)
+    # Cron format: minute hour day month weekday
+    # Change this to your desired schedule:
+    # Every 30 minutes: '*/30 * * * *'
+    # Every hour: '0 * * * *'
+    # Every 6 hours: '0 */6 * * *'
+    # Daily at 9 AM UTC: '0 9 * * *'
+    - cron: '0 * * * *'
+  
+  # Allows manual trigger from GitHub Actions tab
+  workflow_dispatch:
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Build TypeScript
+        run: npm run build
+      
+      - name: Run Polymarket Bot
+        run: npm run send
+        # Optional: Add environment variables here if you move Twilio credentials to secrets
+        # env:
+        #   TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
+        #   TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}

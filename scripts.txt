@@ -1,0 +1,28 @@
+curl "https://gamma-api.polymarket.com/events?tag_id=10000&limit=1&closed=false"
+
+"https://gamma-api.polymarket.com/events/154572" | json
+
+curl "https://gamma-api.polymarket.com/events?tag_id=10000&limit=1&closed=false"
+
+// Get series of Elon tweet Events
+// To detect if new event available or not
+curl -o elon-series.json "https://gamma-api.polymarket.com/events?series_id=10000&limit=10&closed=false" | json
+
+
+const accountSid = 'AC57d3b83851c059fc62a955b718e4cc30';
+const authToken = '4e4dc75f524583a0fda7dd53a9302314';
+const client = require('twilio')(accountSid, authToken);
+
+client.messages
+    .create({
+        body: 'Your appointment is coming up on July 21 at 3PM 999',
+        from: 'whatsapp:+14155238886',
+        to: 'whatsapp:+85259316658'
+    })
+    .then(message => console.log(message.sid))
+    .done();
+
+
+Polymarket bot plan
+1. Scan new Series every hour
+2. Twilio notification
