@@ -43,8 +43,8 @@ async function fetchElonTweetsSeries(): Promise<any> {
 }
 
 function sendWhatsAppAppointmentReminder(output: string[]) {
-  const accountSid = 'AC57d3b83851c059fc62a955b718e4cc30';
-  const authToken = '4e4dc75f524583a0fda7dd53a9302314';
+  const accountSid = process.env.TWILIO_ACCOUNTSID!;
+  const authToken = process.env.TWILIO_AUTHTOKEN!;
   const client = twilio(accountSid, authToken);
 
   const messageBody = output.join('\n');
