@@ -102,7 +102,7 @@ function scanMultiMarketExtractNoTokenIds(
   // scan only last event
 
   // get last event
-  const lastEvent = Array.isArray(polyEvents) && polyEvents.length > 0 ? polyEvents[polyEvents.length - 2] : undefined;
+  const lastEvent = Array.isArray(polyEvents) && polyEvents.length > 0 ? polyEvents[polyEvents.length - 4] : undefined;
 
   if (lastEvent && Array.isArray(lastEvent.markets)) {
 
@@ -303,7 +303,7 @@ async function fetchWeatherSeries(seriesId: string): Promise<any> {
 }
 
 async function weatherHighestDaily() {
-  const profitMarginDollarLo: number = 0.007;  // 0.7 cents NOT dollar
+  const profitMarginDollarLo: number = 0.010;  // 0.8 cents NOT dollar
   const profitMarginDollarHi: number = 0.020;   // 2 cents
   const allSeriesTokenIds: string[] = [];
   for (const seriesId of Object.values(RegionWeatherSeriesIDs)) {
@@ -401,18 +401,40 @@ async function scanCryptoUpDownExtractTokenIds(
   // Objectives: Only buy any side (once) when timer is less than 15 seconds AND price is more than 85 cents
   const minPrice: number = 0.85;
   let tokenId;
-  if (Number(prices[UPValidatedId].BUY) >= minPrice) 
-    { tokenId = UPValidatedId }
-  else if (Number(prices[DOWNValidatedId].BUY) >= minPrice) 
-    { tokenId = DOWNValidatedId }
+  if (Number(prices[UPValidatedId].BUY) >= minPrice) { tokenId = UPValidatedId }
+  else if (Number(prices[DOWNValidatedId].BUY) >= minPrice) { tokenId = DOWNValidatedId }
 
   const response = await clobClient.createAndPostMarketOrder(
-    { tokenID: tokenId, side: Side.BUY, amount: 10 },
-    { },
+    { tokenID: tokenId, side: Side.BUY, amount: 3 },
+    {},
     OrderType.FAK
   );
-
+  let takingAmount = 0;
+  if (response.success){
+    takingAmount = response.takingAmount
+  }
   console.log(response);
+
+
+  // Aggressive cut loss guard mechanism
+  // 10 seconds hold, then, revalidate for last cut loss if less than 0.9  
+  // Call getPrices after 10 seconds timeout
+  await new Promise(resolve => setTimeout(resolve, 10000));
+  const recheckPrice = await clobClient.getPrices([
+    { token_id: tokenId, side: Side.SELL },
+  ]);
+
+  // Aggressive cut loss guard.   
+  const minThreshold = 0.8;   // less than 0.8, cut loss, market sell
+  const shouldCutLoss = Number(recheckPrice[tokenId].BUY) < minThreshold;
+  if (shouldCutLoss) {
+    const response = await clobClient.createAndPostMarketOrder(
+      { tokenID: tokenId, side: Side.SELL, amount: takingAmount },
+      {},
+      OrderType.FAK
+    );
+    console.log(response);
+  }
   return [];
 }
 
