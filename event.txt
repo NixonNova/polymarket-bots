@@ -1,0 +1,95 @@
+
+{
+  id: '2054493',
+  question: 'Game 3: Any Player Rampage?',
+  conditionId: '0xd093135f6e5451ab2c837af5cd46e41d6676e6e496a0702ec365a064142a2613',
+  slug: 'dota2-ngx-ivo-2026-04-23-game3-any-player-rampage',
+  resolutionSource: 'https://www.dotabuff.com',
+  endDate: '2026-04-23T14:00:00Z',
+  liquidity: '0',
+  startDate: '2026-04-22T19:34:04.348752Z',
+  image: 'https://polymarket-upload.s3.us-east-2.amazonaws.com/dota2-7ffacddb21.jpg',
+  icon: 'https://polymarket-upload.s3.us-east-2.amazonaws.com/dota2-7ffacddb21.jpg',
+  description: 'This market is about whether any player achieves a Rampage during Game 3. In Dota 2, a Rampage occurs when a single player kills all 5 enemy heroes in rapid succession without dying.\n' +
+    '\n' +
+    'This market will resolve to "Yes" if any player on either team achieves a Rampage during Game 3. This market will resolve to "No" if no player achieves a Rampage.\n' +
+    '\n' +
+    'If the match is canceled (not played at all) or is delayed beyond 7 days from the scheduled date, this market will resolve to 50-50.\n' +
+    '\n' +
+    'If Game 3 is never played due to forfeit, disqualification, or walkover, this market will resolve to 50-50.\n' +
+    '\n' +
+    'If Game 3 is not played because the series result has already been determined (e.g., a team clinches the series before Game 3 is needed), this market will resolve to 50-50.\n' +
+    '\n' +
+    'If Game 3 begins but is not completed and ends via forfeit, this market will resolve based on whether a Rampage occurred prior to stoppage. If no Rampage occurred, this market will resolve to "No".\n' +
+    '\n' +
+    'If Game 3 is remade, resolution will be based on the remade game only.\n' +
+    '\n' +
+    "The resolution source for this market will be official information from https://www.dotabuff.com. However, if https://www.dotabuff.com has not published final results within 2 hours after the event's conclusion, a consensus of credible reporting may be used instead including video evidence.",
+  outcomes: '["Yes", "No"]',
+  outcomePrices: '["0.5", "0.5"]',
+  active: true,
+  closed: true,
+  marketMakerAddress: '',
+  createdAt: '2026-04-22T19:30:12.371226Z',
+  updatedAt: '2026-04-23T14:27:04.159402Z',
+  closedTime: '2026-04-23 14:25:44+00',
+  new: false,
+  featured: false,
+  submitted_by: '0x91430CaD2d3975766499717fA0D66A78D814E5c5',
+  archived: false,
+  resolvedBy: '0x65070BE91477460D8A7AeEb94ef92fe056C2f2A7',
+  restricted: true,
+  groupItemTitle: 'Any Player Rampage',
+  questionID: '0x76f565391f94f77ec576cf1e241729be30cde2e03fb9983fc58e78ac79c34016',
+  umaEndDate: '2026-04-23T14:25:44Z',
+  enableOrderBook: true,
+  orderPriceMinTickSize: 0.01,
+  orderMinSize: 5,
+  umaResolutionStatus: 'resolved',
+  liquidityNum: 0,
+  endDateIso: '2026-04-23',
+  startDateIso: '2026-04-22',
+  hasReviewedDates: true,
+  gameStartTime: '2026-04-23 09:00:00+00',
+  secondsDelay: 3,
+  clobTokenIds: '["8237500983705488754185782640282072071821488515892226993663084840116813025252", "61988615532954797666475470218791869729913195451123527460792787361636144502755"]',
+  umaBond: '500',
+  umaReward: '2',
+  liquidityAmm: 0,
+  liquidityClob: 0,
+  makerBaseFee: 1000,
+  takerBaseFee: 1000,
+  customLiveness: 0,
+  acceptingOrders: false,
+  negRisk: false,
+  negRiskRequestID: '',
+  ready: false,
+  funded: false,
+  acceptingOrdersTimestamp: '2026-04-22T19:33:00Z',
+  cyom: false,
+  competitive: 0,
+  pagerDutyNotificationEnabled: false,
+  approved: true,
+  rewardsMinSize: 50,
+  rewardsMaxSpread: 4.5,
+  spread: 0.02,
+  automaticallyResolved: true,
+  oneHourPriceChange: -0.005,
+  bestBid: 0.49,
+  bestAsk: 0.51,
+  automaticallyActive: true,
+  clearBookOnStart: true,
+  manualActivation: false,
+  negRiskOther: false,
+  sportsMarketType: 'dota2_rampage',
+  umaResolutionStatuses: '["proposed"]',
+  pendingDeployment: false,
+  deploying: false,
+  deployingTimestamp: '2026-04-22T19:30:26.62879Z',
+  rfqEnabled: false,
+  holdingRewardsEnabled: false,
+  feesEnabled: true,
+  requiresTranslation: false,
+  feeType: 'sports_fees_v2',
+  feeSchedule: { exponent: 1, rate: 0.03, takerOnly: true, rebateRate: 0.25 }
+}

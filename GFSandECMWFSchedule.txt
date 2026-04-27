@@ -1,0 +1,41 @@
+Can you give me the time when GFS and ECMWF update every day, and please also show me the conversion to Hong Kong time, because now I am in Hong Kong not in GMT +7
+
+Thoughts
+Hong Kong Time (HKT) is UTC+8 year-round (no daylight saving).
+GFS Update Schedule (4 runs per day)
+The GFS model initializes at these UTC times:
+00z (00:00 UTC)
+06z (06:00 UTC)
+12z (12:00 UTC)
+18z (18:00 UTC)
+
+Data becomes available on sites like Tropical Tidbits, Windy, Pivotal Weather, etc., roughly 3.5–5.5 hours later (sometimes up to 6 hours).
+Converted to Hong Kong Time (HKT = UTC+8):
+GFS Run (Initialization)	Approx. Data Available (HKT)
+00:00 UTC	08:00 – 10:30 HKT
+06:00 UTC	14:00 – 16:30 HKT
+12:00 UTC	20:00 – 22:30 HKT
+18:00 UTC	02:00 – 04:30 HKT (next day)
+Best time to check: 30–60 minutes after the “approx. available” window starts for each run.
+
+ECMWF Update Schedule (Main runs)
+ECMWF mainly runs at 00z and 12z (with shorter supplementary runs at 06z/18z).
+Data is slower — usually available 6–9 hours after initialization.Converted to Hong Kong Time:
+ECMWF Run (Initialization)	Approx. Data Available (HKT)
+00:00 UTC	08:00 – 12:00 HKT
+12:00 UTC	20:00 – 00:00 HKT (next day)
+06:00 UTC (supplementary)	14:00 – 18:00 HKT
+18:00 UTC (supplementary)	02:00 – 06:00 HKT (next day)
+
+Quick Daily Routine for You in Hong Kong
+Morning (around 8–11 HKT): Check new 00z GFS + ECMWF
+Afternoon (around 2–5 PM HKT): Check new 06z GFS
+Evening (around 8–11 PM HKT): Check new 12z GFS + ECMWF
+Late night / early morning (2–5 AM HKT): Check new 18z GFS
+
+Pro tip: Set phone alarms for these windows. 
+The biggest edges on Polymarket often appear in the first 1–2 hours after a fresh run drops, before the crowd fully prices it in.Recommended Sites (All Interactive with Hover)
+Windy.com — easiest for hovering temperatures
+Pivotalweather.com — great hover + soundings
+Tropicaltidbits.com — still good for quick visuals
+Would you like me to also give you the schedule for other useful models (ICON, HRRR, etc.) or set up a simple daily checklist? Just tell me which city markets you're focusing on (Hong Kong, Miami, NYC, London, etc.) and I can tailor the timing even more.

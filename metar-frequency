@@ -1,0 +1,51 @@
+KLGA, LaGuardia (New York), KLGA, 60, 0451 2351 2251 2151 2051 (US ASOS routine ~hourly at :51; high-freq AUTO every ~5 min available)
+EGLC, London City, EGLC, 30, 2320 2250 2220 2150 2120 (typical 30-min cycle)
+KDAL, Dallas Love Field, KDAL, 60, ~XX51 pattern (standard US hourly)
+KMIA, Miami International, KMIA, 30, ~XX53/:23 or 30-min for major hub
+KBKF, Buckley Space Force Base, KBKF, 60, hourly (military/US pattern)
+KSEA, Seattle-Tacoma, KSEA, 30-60, ~XX53 (often 30-min effective for busy)
+KATL, Atlanta Hartsfield-Jackson, KATL, 30, ~XX53/:23 (major hub)
+RJTT, Tokyo Haneda, RJTT, 30, :20/:50 typical
+ZSPD, Shanghai Pudong, ZSPD, 60, hourly (common China)
+CYYZ, Toronto Pearson, CYYZ, 30, 30-min cycle
+SAEZ, Buenos Aires Ezeiza, SAEZ, 60, hourly
+LTAC, Ankara Esenboga, LTAC, 30-60, variable, often 30
+NZWN, Wellington, NZWN, 30, 30-min
+SBGR, Sao Paulo Guarulhos, SBGR, 30-60, ~30/60 mix
+VILK, Lucknow, VILK, 60, hourly (India typical)
+EDDM, Munich, EDDM, 30, 30-min
+LLBG, Tel Aviv Ben Gurion, LLBG, 30, 30-min
+VHHH, Hong Kong, VHHH, 30, 30-min
+WSSS, Singapore Changi, WSSS, 30, 30-min
+EPWA, Warsaw Chopin, EPWA, 30, 30-min
+LEMD, Madrid Barajas, LEMD, 30, 0930 0900 0830 0800 0730 (example; consistent 30)
+RCSS, Taipei Songshan, RCSS, 30-60, ~30/60
+ZBAA, Beijing Capital, ZBAA, 60, hourly
+ZHHH, Wuhan, ZHHH, 60, hourly
+ZUUU, Chengdu Shuangliu, ZUUU, 60, hourly
+ZGSZ, Shenzhen Baoan, ZGSZ, 60, hourly
+KAUS, Austin-Bergstrom, KAUS, 60, ~:51 hourly
+KHOU, Houston Hobby, KHOU, 60, hourly
+LIMC, Milan Malpensa, LIMC, 30, 30-min
+KSFO, San Francisco, KSFO, 30-60, ~:53
+UUWW, Moscow Vnukovo, UUWW, 30-60, variable
+LTFM, Istanbul Airport, LTFM, 30, 30-min
+MMMX, Mexico City, MMMX, 60, hourly
+EHAM, Amsterdam Schiphol, EHAM, 30, 30-min
+EFHK, Helsinki, EFHK, 30, 30-min
+MPMG, Panama Marcos A. Gelabert, MPMG, 60, hourly
+WMKK, Kuala Lumpur, WMKK, 30, 30-min
+WIHH, Jakarta Halim, WIHH, 60, hourly (Indonesia)
+RKPK, Busan Gimhae, RKPK, 30, 30-min
+ZUCK, Chongqing Jiangbei, ZUCK, 60, 1500 1400 1300 1200 1100 (example hourly)
+KORD, Chicago O'Hare, KORD, 30, ~:53/:23 or 30 effective
+LFPG, Paris Charles de Gaulle, LFPG, 30, 30-min
+KLAX, Los Angeles, KLAX, 30-60, ~:53
+RKSI, Incheon Seoul, RKSI, 30, 30-min
+OEJN, Jeddah, OEJN, 30, 30-min
+DNMM, Lagos Murtala Muhammed, DNMM, 60, hourly
+FACT, Cape Town, FACT, 30-60, 30/60 mix
+ZGGG, Guangzhou, ZGGG, 60, hourly
+OPKC, Karachi, OPKC, 60, hourly
+RPLL, Manila Ninoy Aquino, RPLL, 30-60, ~30/60  
+
