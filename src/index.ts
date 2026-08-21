@@ -947,19 +947,26 @@ async function weatherLiquidator() {
   const allMyPositions = await fetchMyPositions();
 
   if (allMyPositions && Array.isArray(allMyPositions)) {
-    let pnlThreshold = -20;   // -20%
-    const negativePnLPositions = allMyPositions.filter((position: any) => {
+    //let pnlThreshold = -20;   // -20%
+/*     const negativePnLPositions = allMyPositions.filter((position: any) => {
       return position.percentPnl < pnlThreshold
     }
     );
-
+ */
     const orderRequests: UserMarketOrderV2[] = [];
     const clobClient = await newClobClient()
-
-    for (const pos of negativePnLPositions) {
+    const pnlThreshold = -20;   // -20% 
+    
+    for (const pos of allMyPositions) {
       const book = await clobClient.getOrderBook(pos.asset);
+      const price = await clobClient.getPrice(pos.asset, Side.BUY);
+
+      const pnlPercentage = Math.floor(((price.price - pos.avgPrice) / pos.avgPrice) * 100);
+      const isBelowThreshold = pnlPercentage < pnlThreshold;
+
       const isMatchingBidPrice = book && Array.isArray(book.bids) && book.bids.length > 0;
-      if (isMatchingBidPrice) {
+ 
+      if (isMatchingBidPrice && isBelowThreshold) {
 
         // if position bigger than 50, then liquidate half.
         const sellAmount = pos.size > 50 ? pos.size / 2 : pos.size - 0.01;
@@ -984,14 +991,13 @@ async function weatherLiquidator() {
     const chunkSize = 15; // because api limit to 15 in a batch
     const aggregateBy15Orders = chunkOrders(orders, chunkSize);
 
-    //const responses = [];
     for (const orderChunk of aggregateBy15Orders) {
-      const response = await clobClient.postOrders(
+
+       const response = await clobClient.postOrders(
         orderChunk.map((order) => ({ order, orderType: OrderType.FAK })),
       );
-      //responses.push(response);
+ 
     }
-    //console.log(responses)
   }
 }
 
@@ -1592,7 +1598,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   
   //weatherByMetarTiming();
 
-  //weatherLiquidator();
+  weatherLiquidator();
 
   //weatherDeadBracketDeployer();
 
@@ -1621,7 +1627,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   //dominantBracketDeployer([PolymarketTagIds.Indian_Premier_League]);
   //dominantBracketDeployer([PolymarketTagIds.Chinese_Super_League], amountCapitalToDeployUsd);
 
-  dominantBracketDeployer([PolymarketTagIds.VALORANT], amountCapitalToDeployUsd);
+  //dominantBracketDeployer([PolymarketTagIds.VALORANT], amountCapitalToDeployUsd);
   //dominantBracketDeployer([PolymarketTagIds.COUNTER_STRIKE_2], amountCapitalToDeployUsd);
   //dominantBracketDeployer([PolymarketTagIds.LEAGUE_OF_LEGENDS], amountCapitalToDeployUsd);
   //dominantBracketDeployer([PolymarketTagIds.DOTA_2], amountCapitalToDeployUsd);
