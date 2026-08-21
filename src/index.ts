@@ -2,12 +2,16 @@ import twilio from "twilio";
 import { fileURLToPath } from 'url';
 import { config as dotenvConfig } from "dotenv";
 import { resolve } from "path";
-import { ClobClient, OrderType, Side, Chain, AssetType, UserMarketOrder } from "@polymarket/clob-client";
+//import { ClobClient, OrderType, Side, Chain, AssetType, UserMarketOrder } from "@polymarket/clob-client";
+import { ClobClient, OrderType, Side, Chain, AssetType, UserMarketOrderV2, ApiKeyCreds } from "@polymarket/clob-client-v2";
+
 import { Wallet } from "@ethersproject/wallet";
-import {
+
+/* import {
   BuilderConfig,
   BuilderApiKeyCreds,
 } from "@polymarket/builder-signing-sdk";
+ */
 import { RegionWeatherSeriesIds } from './RegionWeatherSeriesIds.enum.js';
 import { CryptoSeriesIds } from "./CryptoSeriesIds.enum.js";
 import { StockSeriesIds } from "./StockSeriesIds.enum.js";
@@ -16,6 +20,7 @@ import fs from 'fs';
 import path from 'path';
 import axios from "axios";
 import { PolymarketTagIds } from "./PolymarketTagIds.enum.js";
+import { TokenInstance } from "twilio/lib/rest/previewIam/v1/token.js";
 
 function resolveDotenvPath(): string {
   let dir = import.meta.dirname;
@@ -223,14 +228,128 @@ function scanMultiMarketExtractNoTokenIds(
   return outputArr;
 }
 
+async function processMarketsMultiMarketExtractTopYESTokenId(
+  markets: any[],
+  minPriceUsd: number,
+  maxPriceUsd: number,
+  isLowRiskDeployment: boolean = false
+): Promise<string[]> {
+  const outputArr: string[] = [];
+
+  // to be used if isLowRiskDeployment = true
+  let hasSkippedFirstNo: boolean = false;
+
+  if (Array.isArray(markets)) {
+
+    let isIncludedCapitalDeployment = false;
+
+    
+
+    const sortedMarkets = markets
+      .slice() // create a shallow copy to avoid mutating original
+      .sort((a: any, b: any) => a.id - b.id)
+      .slice(0, 100);
+
+    for (const market of sortedMarkets) {
+
+        // call get to get the latest version, because the one from event is stale
+        // Fetch latest market data from Polymarket API by market.id
+        const getMarketUrl = `https://gamma-api.polymarket.com/markets/${market.id}`;
+        let latestMarket;
+        try {
+          const latestMarketResp = await fetch(getMarketUrl);
+          if (!latestMarketResp.ok) {
+            throw new Error(`HTTP error! status: ${latestMarketResp.status}`);
+          }
+          latestMarket = await latestMarketResp.json();
+        } catch (e) {
+          console.error(`Failed to fetch latest market ${market.id}:`, e);
+          latestMarket = market; // fallback to original if failed
+        }
+
+        if (latestMarket) {
+          // Calculate max field lengths for padding
+          const groupItemTitleStr = String(latestMarket.groupItemTitle ?? '');
+
+          let clobTokenIdsArr: any[] = [];
+          try {
+            clobTokenIdsArr = Array.isArray(latestMarket.clobTokenIds)
+              ? latestMarket.clobTokenIds
+              : JSON.parse(latestMarket.clobTokenIds ?? '[]');
+          } catch {
+            clobTokenIdsArr = [];
+          }
+
+          let [clobTokenIdYES, clobTokenIdNO] = [...clobTokenIdsArr];
+
+          // outcomePrices is a JSON-stringified array, so parse it and print only the second element
+          const outcomePricesArr = Array.isArray(latestMarket.outcomePrices)
+            ? latestMarket.outcomePrices
+            : JSON.parse(latestMarket.outcomePrices ?? '[]');
+
+          //let isIncludedCapitalDeployment = false;
+          let outcomePricesStrYES = '';
+          let outcomePricesStrNO = '';
+
+          if (outcomePricesArr.length > 1) {
+            let [outcomePriceYES, outcomePriceNO] = [...outcomePricesArr];
+
+            outcomePricesStrYES = String(outcomePriceYES);
+            outcomePricesStrNO = String(outcomePriceNO);
+
+            const outcomePriceNumberYES = Number(outcomePriceYES);
+            const outcomePriceNumberNO = Number(outcomePriceNO);
+
+            // During iteration, deployment flag starts with false
+            // Once condition is met, YES token will be included. And flag set to true
+            if (!isNaN(outcomePriceNumberYES) &&
+              outcomePriceNumberYES >= minPriceUsd &&
+              outcomePriceNumberYES <= maxPriceUsd) {
+
+              isIncludedCapitalDeployment = true;              
+              
+              // if not low risk then include YES, low risk capital deployment will skip YES
+              if (!isLowRiskDeployment) {
+                outputArr.push(clobTokenIdYES);
+                //console.log(groupItemTitleStr);
+                //console.log(latestMarket.question, latestMarket.id, latestMarket.endDate);
+              }
+         
+
+              //console.log(groupItemTitleStr);
+              //console.log(latestMarket.question, latestMarket.id, latestMarket.endDate);
+
+              // continue to next iteration
+              continue;
+            }
+
+            // Iteration still ongoing, check for NO token and if deploy flag is true
+            // If found, deploy too. Because once capital deployed to YES, deploy to NO is in the same side
+            if (!isNaN(outcomePriceNumberNO) && isIncludedCapitalDeployment) {
+              
+              if (isLowRiskDeployment && !hasSkippedFirstNo) {
+                hasSkippedFirstNo = true;
+                continue;
+              }
+         
+              outputArr.push(clobTokenIdNO)
+              console.log(latestMarket.question, latestMarket.id, latestMarket.endDate);
+            }
+          }
+
+        }
+    }
+  }
+  return outputArr;
+}
+
 async function scanMultiMarketExtractTopYESTokenId(
   polyEvents: any,
   minPriceUsd: number = 0.98,
   maxPriceUsd: number = 0.994,
   maxNHoursToEndDate: number = 24,
+  isLowRiskDeployment: boolean = false
 ): Promise<string[]> {
-  const outputArr: string[] = [];
-  const isDebug: boolean = false;
 
   let event: any = undefined;
   if (Array.isArray(polyEvents) && polyEvents.length > 0) {
@@ -257,95 +376,7 @@ async function scanMultiMarketExtractTopYESTokenId(
     }
   }
 
-  if (event && Array.isArray(event.markets)) {
-    let yesTokenId: string = '';
-    let isIncludedCapitalDeployment = false;
-
-    if (isDebug) outputArr.push(String(event.title));
-    event.markets
-      .slice() // create a shallow copy to avoid mutating original
-      .sort((a: any, b: any) => a.id - b.id)
-      .slice(0, 100).forEach((market: any) => {
-
-        if (market) {
-          // Calculate max field lengths for padding
-          const groupItemTitleStr = String(market.groupItemTitle ?? '');
-
-
-          let clobTokenIdsArr: any[] = [];
-          try {
-            clobTokenIdsArr = Array.isArray(market.clobTokenIds)
-              ? market.clobTokenIds
-              : JSON.parse(market.clobTokenIds ?? '[]');
-          } catch {
-            clobTokenIdsArr = [];
-          }
-
-          let [clobTokenIdYES, clobTokenIdNO] = [...clobTokenIdsArr];
-
-          // outcomePrices is a JSON-stringified array, so parse it and print only the second element
-          const outcomePricesArr = Array.isArray(market.outcomePrices)
-            ? market.outcomePrices
-            : JSON.parse(market.outcomePrices ?? '[]');
-
-          //let isIncludedCapitalDeployment = false;
-          let outcomePricesStrYES = '';
-          let outcomePricesStrNO = '';
-
-          if (outcomePricesArr.length > 1) {
-            let [outcomePriceYES, outcomePriceNO] = [...outcomePricesArr];
-
-            outcomePricesStrYES = String(outcomePriceYES);
-            outcomePricesStrNO = String(outcomePriceNO);
-
-            const outcomePriceNumberYES = Number(outcomePriceYES);
-            const outcomePriceNumberNO = Number(outcomePriceNO);
-
-            // During iteration, deployment flag starts with false
-            // Once condition is met, YES token will be included. And flag set to true
-            if (!isNaN(outcomePriceNumberYES) &&
-              outcomePriceNumberYES >= minPriceUsd &&
-              outcomePriceNumberYES <= maxPriceUsd) {
-              isIncludedCapitalDeployment = true;
-              outcomePricesStrYES += ' *';
-              //yesTokenId = clobTokenIdYES
-              //console.log('YES ', groupItemTitleStr);
-              outputArr.push(clobTokenIdYES)
-              // continue to next iteration
-              return;
-            }
-
-            // Iteration still ongoing, check for NO token and if deploy flag is true
-            // If found, deploy too. Because once capital deployed to YES, deploy to NO is in the same side
-            if (!isNaN(outcomePriceNumberNO) && isIncludedCapitalDeployment) {
-              //console.log('NO ',groupItemTitleStr);
-              outputArr.push(clobTokenIdNO)
-            }
-          }
-
-
-          //const delimiter = ' ';
-
-          // You would ideally align across all markets, but for one call, align based on current market
-          //const groupItemTitleWidth = Math.max(groupItemTitleStr.length, 8);
-          //const outcomePricesWidthYES = Math.max(outcomePricesStrYES.length, 14);
-          //const outcomePricesWidthNO = Math.max(outcomePricesStrNO.length, 14);
-
-          //if (isDebug && isIncludedCapitalDeployment) {
-          //  outputArr.push(
-          //    groupItemTitleStr.padEnd(groupItemTitleWidth) +
-          //    delimiter +
-          //    outcomePricesStrYES.padEnd(outcomePricesWidthYES) +
-          //    delimiter +
-          //    clobTokenIdYES
-          //  );
-          //} else {
-          //  if (isIncludedCapitalDeployment) outputArr.push(clobTokenIdYES)
-          //}
-
-        }
-      });
-  }
+  const outputArr: string[] = await processMarketsMultiMarketExtractTopYESTokenId(event.markets, minPriceUsd, maxPriceUsd, isLowRiskDeployment);
 
   return outputArr;
 }
@@ -355,34 +386,53 @@ const signer = new Wallet(process.env.POLY_EMAIL_PK!);
 const host = 'https://clob.polymarket.com';
 const signatureType = 1;  //email
 //This is your Polymarket Profile Address, where you send UDSC to.
-const funder = process.env.POLY_WALLET_ADD!;
+const funderAddress = process.env.POLY_WALLET_ADD!;
 
 async function newClobClient(): Promise<ClobClient> {
 
   //In general don't create a new API key, always derive or createOrDerive
-  const apiCreds = new ClobClient(host, Chain.POLYGON, signer).createOrDeriveApiKey();
+  //const creds = new ClobClient({host, chain: Chain.POLYGON, signer}).createOrDeriveApiKey();
 
+
+  const clobClient = new ClobClient({ host, chain: Chain.POLYGON, signer });
+  const creds = await clobClient.createOrDeriveApiKey();
+
+  /*   const creds: ApiKeyCreds = {
+      key: `${process.env.POLY_BUILDER_API_KEY}`,
+      secret: `${process.env.POLY_BUILDER_SECRET}`,
+      passphrase: `${process.env.POLY_BUILDER_PASSPHRASE}`,
+    };
+   */
   // Builder key
-  const builderCreds: BuilderApiKeyCreds = {
-    key: process.env.POLY_BUILDER_API_KEY!,
-    secret: process.env.POLY_BUILDER_SECRET!,
-    passphrase: process.env.POLY_BUILDER_PASSPHRASE!,
-  };
-  const builderConfig = new BuilderConfig({
-    localBuilderCreds: builderCreds,
-  });
-
-  return new ClobClient(
-    "https://clob.polymarket.com",
-    Chain.POLYGON,
+  /*   const builderCreds: BuilderApiKeyCreds = {
+      key: process.env.POLY_BUILDER_API_KEY!,
+      secret: process.env.POLY_BUILDER_SECRET!,
+      passphrase: process.env.POLY_BUILDER_PASSPHRASE!,
+    };
+    const builderConfig = new BuilderConfig({
+      localBuilderCreds: builderCreds,
+    });
+   */
+  /*   return new ClobClient(
+      "https://clob.polymarket.com",
+      Chain.POLYGON,
+      signer,
+      await apiCreds,
+      signatureType,
+      funder,
+      undefined,
+      false,
+      builderConfig,
+    ); */
+  return new ClobClient({
+    host,
+    chain: Chain.POLYGON,
     signer,
-    await apiCreds,
+    creds,
     signatureType,
-    funder,
-    undefined,
-    false,
-    builderConfig,
-  );
+    funderAddress,
+    builderConfig: { builderCode: process.env.POLY_BUILDER_CODE! },
+  });
 
 }
 
@@ -396,14 +446,14 @@ async function postOrders(
   // refresh USDC balance
   await clobClient.updateBalanceAllowance({ asset_type: AssetType.COLLATERAL });
 
-  const orderRequests: UserMarketOrder[] = [];
+  const orderRequests: UserMarketOrderV2[] = [];
 
   for (const tokenId of clobTokenIds) {
 
     // check if trade is available, if available then don't deploy another capital here
     const trades = await clobClient.getTrades({
       asset_id: tokenId, // NO
-      maker_address: funder,
+      maker_address: funderAddress,
     })
 
     const isThisTokenNeverDeployedCapital = !Array.isArray(trades) || trades.length === 0;
@@ -412,7 +462,12 @@ async function postOrders(
     const book = await clobClient.getOrderBook(tokenId);
     const isThereMatchingAskPrice = book && Array.isArray(book.asks) && book.asks.length > 0;
 
-    if (isThisTokenNeverDeployedCapital && isThereMatchingAskPrice) {
+    // check spread
+    const spread = await clobClient.getSpread(tokenId);
+    const SPREAD_LIMIT = 0.04   // 4 cents
+    const isSpreadTight = Number(spread.spread) <= SPREAD_LIMIT;
+    
+    if (isThisTokenNeverDeployedCapital && isThereMatchingAskPrice && isSpreadTight) {
       orderRequests.push({
         tokenID: tokenId,
         side: Side.BUY,
@@ -455,7 +510,7 @@ function chunkOrders<T>(orders: T[], chunkSize: number): T[][] {
 async function elonTweetsDeadBracketDeployer() {
   const minPriceUsd: number = 0.98;
   const maxPriceUsd: number = 0.99;
-  const amountCapitalToDeployUsd: number = 25;
+  const amountCapitalToDeployUsd: number = 35;
   const maxNHoursToEndDate = 48;
 
   const polyEvents = await fetchElonTweetsSeries();
@@ -614,23 +669,22 @@ async function weatherMetarTrendChecker() {
 // Rely on the price move when YES token is reached 95c. So it can enter position more frequenly.
 async function weatherByMetarTiming() {
   const seriesId = process.env.WEATHER_METAR_SERIES_ID;
-  //const seriesId = 10740;
-
   const icaoConfig = IcaoList.find((config: any) => String(config.seriesId) === String(seriesId));
   if (!icaoConfig) {
     throw new Error("ICAO config not found in IcaoList");
   }
 
   // post order
-  const minPriceUsd: number = 0.92;
-  const maxPriceUsd: number = 0.995;
+  const minPriceUsd: number = 0.75;
+  const maxPriceUsd: number = 0.99;
   const maxNHoursToEndDate = 12;
+  const isLowRiskDeployment = true;
+  
   const polyEvents = await fetchMultiMarketBySeriesId(icaoConfig.seriesId);
-  const tokendIds = await scanMultiMarketExtractTopYESTokenId(polyEvents, minPriceUsd, maxPriceUsd, maxNHoursToEndDate);
-
-  const amountCapitalToDeployUsd: number = 35;
+  const tokendIds = await scanMultiMarketExtractTopYESTokenId(polyEvents, minPriceUsd, maxPriceUsd, maxNHoursToEndDate, isLowRiskDeployment);
+  //console.log(tokendIds);
+  const amountCapitalToDeployUsd: number = 10;
   await postOrders(tokendIds, amountCapitalToDeployUsd);
-
 }
 
 async function weatherByMetarData() {
@@ -681,8 +735,10 @@ async function weatherByMetarData() {
     const minPriceUsd: number = 0.90;
     const maxPriceUsd: number = 0.995;
     const maxNHoursToEndDate = 12;
+    const isLowRiskDeployment = true;
+
     const polyEvents = await fetchMultiMarketBySeriesId(icaoConfig.seriesId);
-    const tokendIds = await scanMultiMarketExtractTopYESTokenId(polyEvents, minPriceUsd, maxPriceUsd, maxNHoursToEndDate);
+    const tokendIds = await scanMultiMarketExtractTopYESTokenId(polyEvents, minPriceUsd, maxPriceUsd, maxNHoursToEndDate, isLowRiskDeployment);
 
     const amountCapitalToDeployUsd: number = 50;
     await postOrders(tokendIds, amountCapitalToDeployUsd);
@@ -729,25 +785,7 @@ async function scanCryptoUpDownExtractTokenIds(
 ): Promise<string[]> {
 
 
-  const host = 'https://clob.polymarket.com';
-  const signatureType = 1;  //email
-  //This is your Polymarket Profile Address, where you send UDSC to.
-  const funder = process.env.POLY_WALLET_ADD!;
-  const signer = new Wallet(process.env.POLY_EMAIL_PK!);
-
-  //In general don't create a new API key, always derive or createOrDerive
-  const apiCreds = new ClobClient(host, Chain.POLYGON, signer).createOrDeriveApiKey();
-
-  const clobClient = new ClobClient(
-    "https://clob.polymarket.com",
-    Chain.POLYGON,
-    signer,
-    await apiCreds,
-    signatureType,
-    funder,
-    undefined,
-    false,
-  );
+  const clobClient = await newClobClient();
 
   const timeValidatedIds = []
 
@@ -757,12 +795,13 @@ async function scanCryptoUpDownExtractTokenIds(
       if (Array.isArray(polyEvent.markets)) {
         for (const market of polyEvent.markets) {
           {
-            const dateUTC = new Date(market.endDate);
+            //console.log(market.endDate);
+            const marketEndDateUtc = new Date(market.endDate);
             // Convert to Eastern Time (ET), which is 'America/New_York'
             //const etStr = dateUTC.toLocaleString('en-US', { timeZone: 'America/New_York' });
             // Only print if market.endDate is less than 30 seconds from now
             const now = new Date();
-            const diffMs = dateUTC.getTime() - now.getTime();
+            const diffMs = marketEndDateUtc.getTime() - now.getTime();
 
             let clobTokenIdsArr: any[] = [];
             try {
@@ -781,16 +820,18 @@ async function scanCryptoUpDownExtractTokenIds(
                           '97970745765891147583037570852124103688276664618571067478875376387948344884216': { BUY: '0.49', SELL: '0.5' }
                         };
              */
+                        //console.log(diffMs);
 
             // Condition guard, to locate market where the end time is less than 30 seconds
-            // On top of this condition, this script is ran by scheduler every 5 minutes, kicked off 20 seconds before time is up
+            // On top of this condition, this script is ran by scheduler every 5 minutes, kicked off n seconds before time is up
             if (diffMs < 30 * 1000 && diffMs > 0) {
+              //console.log('diffMs is less than 30 seconds');
               //  console.log(market.question + ' / ' + etStr + ' / ' + market.id);
-              //  console.log(prices);
               timeValidatedIds.push(UP)
               timeValidatedIds.push(DOWN)
-
             }
+            //console.log(timeValidatedIds);
+
           }
         }
       }
@@ -806,17 +847,15 @@ async function scanCryptoUpDownExtractTokenIds(
     { token_id: UPValidatedId, side: Side.BUY },
     { token_id: DOWNValidatedId, side: Side.BUY },
   ]);
-
-
-
-  // Objectives: Only buy any side (once) when timer is less than 15 seconds AND price is more than 85 cents
-  const minPrice: number = 0.88;
+//console.log(prices)
+  // Objectives: Only buy any side (once) when timer is less than 15 seconds AND price is more than min price
+  const minPrice: number = 0.92;
   let tokenId;
   if (Number(prices[UPValidatedId].BUY) >= minPrice) { tokenId = UPValidatedId }
   else if (Number(prices[DOWNValidatedId].BUY) >= minPrice) { tokenId = DOWNValidatedId }
 
   const responseBuy = await clobClient.createAndPostMarketOrder(
-    { tokenID: tokenId, side: Side.BUY, amount: 20 },
+    { tokenID: tokenId, side: Side.BUY, amount: 5 },
     {},
     OrderType.FAK
   );
@@ -829,19 +868,19 @@ async function scanCryptoUpDownExtractTokenIds(
       token_id: tokenId
     });
   }
+
   //console.log(response);
   //console.log(response.takingAmount);
-
 
   // Aggressive cut loss guard mechanism
   // 10 seconds hold, then, revalidate for last cut loss if less than 0.8  
   // Call getPrices after 10 seconds timeout
-  await new Promise(resolve => setTimeout(resolve, 10000));
-  const responseSell = await clobClient.createAndPostMarketOrder(
-    { tokenID: tokenId, side: Side.SELL, amount: takingAmount - 0.01 },
-    {},
-    OrderType.FAK
-  );
+  //await new Promise(resolve => setTimeout(resolve, 10000));
+  //const responseSell = await clobClient.createAndPostMarketOrder(
+  //  { tokenID: tokenId, side: Side.SELL, amount: takingAmount - 0.01 },
+  //  {},
+  //  OrderType.FAK
+  //);
 
   /*   const recheckPrice = await clobClient.getPrices([
       { token_id: tokenId, side: Side.SELL },
@@ -872,7 +911,7 @@ async function cryptos(seriesId: CryptoSeriesIds) {
 async function fetchCryptoBySeries(seriesId: CryptoSeriesIds) {
   const limit = '350';
   const polymarket_crypto_5minutes_url =
-    `https://gamma-api.polymarket.com/events?series_id=${seriesId}&limit=${limit}&active=true&closed=false&ascending=false&order=endDate&`;
+    `https://gamma-api.polymarket.com/events?series_id=${seriesId}&limit=${limit}&active=true&closed=false&ascending=true&order=endDate&`;
 
   try {
     const response = await fetch(polymarket_crypto_5minutes_url);
@@ -908,16 +947,13 @@ async function weatherLiquidator() {
   const allMyPositions = await fetchMyPositions();
 
   if (allMyPositions && Array.isArray(allMyPositions)) {
-    let pnlThreshold = -30;   // -30%
+    let pnlThreshold = -20;   // -20%
     const negativePnLPositions = allMyPositions.filter((position: any) => {
-      // if yes position, more loose with -50, if no position, which is mostly automated, stricter with -10%
-      // all position yes or no apply -30% threshold because the dead bracket deployer is disabled.
-      //pnlThreshold = position.outcomeIndex === 0 ? -30 : position.outcomeIndex === 1 ? -10 : pnlThreshold;
       return position.percentPnl < pnlThreshold
     }
     );
 
-    const orderRequests: UserMarketOrder[] = [];
+    const orderRequests: UserMarketOrderV2[] = [];
     const clobClient = await newClobClient()
 
     for (const pos of negativePnLPositions) {
@@ -973,28 +1009,343 @@ async function fetchLiveEventsByTagId(tagIds: string[]): Promise<any> {
   }
 }
 
+async function fetchEndingSoonEvents(): Promise<any> {
+  const excludeTagIds = [
+    PolymarketTagIds.CRYPTO,
+    PolymarketTagIds.SPORTS,
+    PolymarketTagIds.TWEET_MARKETS,
+    PolymarketTagIds.EUROVISION,
+    PolymarketTagIds.JEROME_POWELL,
+    PolymarketTagIds.DAILY_TEMPERATURE,
+    PolymarketTagIds.MENTIONS,
+    PolymarketTagIds.THE_BOYS_MOVIE,
+    PolymarketTagIds.REALITY_TV,
+    PolymarketTagIds.FED_CHAIR,
+    PolymarketTagIds.LYFT,
+    PolymarketTagIds.GOOGLE,
+    PolymarketTagIds.STOCKS,
+    PolymarketTagIds.WEATHER,
+    PolymarketTagIds.DRUG,
+    PolymarketTagIds.ROTTEN_TOMATOES,
+    PolymarketTagIds.TRUMP,
+    PolymarketTagIds.PRIMARY_ELECTIONS,
+    PolymarketTagIds.SENATE_PRIMARY,
+    PolymarketTagIds.PRIMARIES,
+    PolymarketTagIds.KPI,
+    PolymarketTagIds.ROBOT,
+    PolymarketTagIds.FINANCE_UPDOWN,
+    PolymarketTagIds.EARNINGS,
+    PolymarketTagIds.IPO,
+    PolymarketTagIds.MAYORAL_ELECTION,
+    PolymarketTagIds.GLOBAL_RATE,
+    PolymarketTagIds.UP_OR_DOWN,
+    PolymarketTagIds.GLOBAL_ELECTIONS,
+    PolymarketTagIds.HOUSE_PRIMARY
+  ];
 
-async function dominantBracketDeployer(polymarketTagIds: string[]) {
+  const end_date_min_days = new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString().replace(/:\d+\.\d+Z$/, ':00Z');
+  const end_date_max_days = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().replace(/:\d+\.\d+Z$/, ':00Z');
+  const limit = 1000;
+  const totalPage = 8;
+
+  const excludeTagIdsQueryString = excludeTagIds.map(id => `exclude_tag_id=${id}`).join('&');
+  const url = 
+    `https://gamma-api.polymarket.com/events/keyset?` +
+    `end_date_min=${end_date_min_days}` +
+    `&end_date_max=${end_date_max_days}` +
+    `&liquidity_min=1000&volume_min=3000&closed=false&order=endDate&ascending=true` +
+    `&limit=${limit}` +
+    `&closed=false` +
+    `&${excludeTagIdsQueryString}`;
+console.log(url)
+    try {
+      let allResults: any[] = [];
+      let nextCursor: string | undefined = undefined;
+  
+      for (let page = 0; page < totalPage; page++) {
+        let fetchUrl = url;
+        if (page > 0 && nextCursor) {
+          fetchUrl += `&after_cursor=${encodeURIComponent(nextCursor)}`;
+        }
+        const response = await fetch(fetchUrl);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data: any = await response.json();
+        if (Array.isArray(data)) {
+          allResults.push(...data);
+        } else if (Array.isArray(data.events)) {
+          allResults.push(...data.events);
+        }
+        if (typeof data.next_cursor === "string") {
+          nextCursor = data.next_cursor;
+          if (!nextCursor) break;
+        } else {
+          break; // no more pages
+        }
+      }
+      return allResults;
+    } catch (error) {
+      console.error('Failed to fetch from Polymarket:', error);
+    }
+  
+
+}
+
+async function fetchEndingSoonMarkets(): Promise<any> {
+
+  const end_date_min_days = new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString().replace(/:\d+\.\d+Z$/, ':00Z');
+  const end_date_max_days = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().replace(/:\d+\.\d+Z$/, ':00Z');
+  const limit = 1000;
+  const totalPage = 10;
+
+  // with $10k liquidity
+  const url = `https://gamma-api.polymarket.com/markets/keyset?` +
+    `end_date_min=${end_date_min_days}` +
+    `&end_date_max=${end_date_max_days}` +
+    `&liquidity_num_min=500&volume_num_min=5000&closed=false&order=endDate&ascending=false` +
+    `&limit=${limit}&include_tag=true`
+  try {
+    let allResults: any[] = [];
+    let nextCursor: string | undefined = undefined;
+
+    for (let page = 0; page < totalPage; page++) {
+      let fetchUrl = url;
+      if (page > 0 && nextCursor) {
+        fetchUrl += `&after_cursor=${encodeURIComponent(nextCursor)}`;
+      }
+      const response = await fetch(fetchUrl);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data: any = await response.json();
+      if (Array.isArray(data)) {
+        allResults.push(...data);
+      } else if (Array.isArray(data.markets)) {
+        allResults.push(...data.markets);
+      }
+      if (typeof data.next_cursor === "string") {
+        nextCursor = data.next_cursor;
+        if (!nextCursor) break;
+      } else {
+        break; // no more pages
+      }
+    }
+    return allResults;
+  } catch (error) {
+    console.error('Failed to fetch from Polymarket:', error);
+  }
+}
+
+async function endingSoonMarketScanner() {
+  const endingSoonMarkets = await fetchEndingSoonMarkets();
+
+  // Get the id of the first event of each market in endingSoonMarkets and remove duplicate event ids
+  let uniqueEventIds: string[] = [];
+  if (Array.isArray(endingSoonMarkets)) {
+    const eventIds = endingSoonMarkets
+      .map((market: any) => Array.isArray(market.events) && market.events.length > 0 ? market.events[0].id : null)
+      .filter((id: string | null) => id !== null);
+    uniqueEventIds = Array.from(new Set(eventIds));
+  }
+
+  const idsQueryString = uniqueEventIds.map(id => `id=${encodeURIComponent(id)}`).join('&');
+  
+  const excludeTagIds = [
+    PolymarketTagIds.CRYPTO,
+    PolymarketTagIds.SPORTS,
+    PolymarketTagIds.TWEET_MARKETS,
+    PolymarketTagIds.EUROVISION,
+    PolymarketTagIds.JEROME_POWELL,
+    PolymarketTagIds.DAILY_TEMPERATURE,
+    PolymarketTagIds.MENTIONS,
+    PolymarketTagIds.THE_BOYS_MOVIE,
+    PolymarketTagIds.REALITY_TV,
+    PolymarketTagIds.FED_CHAIR,
+    PolymarketTagIds.LYFT,
+    PolymarketTagIds.GOOGLE,
+    PolymarketTagIds.STOCKS,
+    PolymarketTagIds.WEATHER,
+    PolymarketTagIds.DRUG,
+    PolymarketTagIds.ROTTEN_TOMATOES,
+    PolymarketTagIds.TRUMP,
+    PolymarketTagIds.PRIMARY_ELECTIONS,
+    PolymarketTagIds.SENATE_PRIMARY,
+    PolymarketTagIds.PRIMARIES,
+    PolymarketTagIds.KPI,
+    PolymarketTagIds.ROBOT,
+    PolymarketTagIds.INTEREST_RATE
+  ];
+  const excludeTagIdsQueryString = excludeTagIds.map(id => `exclude_tag_id=${id}`).join('&');
+  const queryUrl = `https://gamma-api.polymarket.com/events/keyset?limit=50&ascending=true&${idsQueryString}&closed=false&${excludeTagIdsQueryString}`;
+  try {
+    const eventResponse = await fetch(queryUrl);
+    if (!eventResponse.ok) {
+      throw new Error(`HTTP error! status: ${eventResponse.status}`);
+    }
+
+    const eventData: any = await eventResponse.json();
+    
+    let tokendIds: string[] = [];
+    const minPriceUsd = 0.880;
+    const maxPriceUsd = 0.990;  
+    if (Array.isArray(eventData.events)) {
+      for (const event of eventData.events) {
+        if (Array.isArray(event.markets)) {
+          const ids = await processMarketsMultiMarketExtractTopYESTokenId(event.markets, minPriceUsd, maxPriceUsd);
+          tokendIds.push(...ids);
+        }
+      }
+    }
+    console.log(tokendIds)
+    const amountCapitalToDeployUsd: number = 35;
+    //await postOrders(tokendIds, amountCapitalToDeployUsd);
+  
+  } catch (error) {
+    console.error(`Failed to fetch event:`, error);
+  }
+}
+
+async function endingSoonEventsScanner() {
+    const endingSoonEvents = await fetchEndingSoonEvents();    
+    let tokendIds: string[] = [];
+    const minPriceUsd = 0.88;
+    const maxPriceUsd = 0.995;  
+
+    if (Array.isArray(endingSoonEvents)) {
+      for (const event of endingSoonEvents) {
+        if (Array.isArray(event.markets)) {
+          const ids = await processMarketsMultiMarketExtractTopYESTokenId(event.markets, minPriceUsd, maxPriceUsd);
+          tokendIds.push(...ids);
+        }
+      }
+    }
+    console.log(tokendIds)
+    const amountCapitalToDeployUsd: number = 10;
+    //await postOrders(tokendIds, amountCapitalToDeployUsd);  
+}
+
+function mapMarketCondition(polymarketTagIds: string[], score: string, period: string, market: any) {
+  if (!Array.isArray(polymarketTagIds) || polymarketTagIds.length === 0) {
+    return false;
+  }
+  switch (polymarketTagIds[0]) {
+    case PolymarketTagIds.TENNIS:{
+
+      const scoresArr = typeof score === 'string' ? score.split(',') : [];
+
+      const currentScoreStr = period === 'S2'
+        ? scoresArr[1]
+        : period === 'S3'
+          ? scoresArr[2]
+          : undefined;
+ 
+          //console.log(currentScoreStr)
+
+
+      const currentScoreArr = typeof currentScoreStr === 'string' && currentScoreStr.length > 0
+        ? currentScoreStr.split('-').map(x => parseInt(x.trim(), 10))
+        : [];
+      const totalCurrentScore = Array.isArray(currentScoreArr) ? currentScoreArr.reduce((sum, val) => sum + (Number.isInteger(val) ? val : 0), 0) : 0;
+      return totalCurrentScore>3 && period !== 'S1' && market.sportsMarketType ==='moneyline';
+    }
+    case PolymarketTagIds.WNBA:
+      return period === 'Q4' && market.sportsMarketType ==='moneyline';
+    case PolymarketTagIds.MLB:
+      return (period === 'Top 8th'|| period==='Top 9th') && market.sportsMarketType ==='moneyline';
+    case PolymarketTagIds.VALORANT:
+    case PolymarketTagIds.COUNTER_STRIKE_2:
+    case PolymarketTagIds.DOTA_2:
+    case PolymarketTagIds.LEAGUE_OF_LEGENDS: {
+      
+      // 'Game' or 'Map' prefix
+      const gameOrMapPrefix = (polymarketTagIds[0]=== PolymarketTagIds.COUNTER_STRIKE_2 || polymarketTagIds[0]=== PolymarketTagIds.VALORANT) ? "Map" : "Game";
+
+      // check best of n
+      //const isBestOfThree = typeof score === 'string' && score.includes('Bo3');
+      
+      const isBestOfFive = typeof score === 'string' && score.includes('Bo5');
+
+      // default is best of 3
+      let periodSuffixStr = '/3';
+
+      if (isBestOfFive) {
+        periodSuffixStr = '/5';
+      }
+
+      let matchWinnerString = 'Match Winner'
+
+      if (isBestOfFive){
+        matchWinnerString = gameOrMapPrefix + ' 3 Winner'
+      }
+
+      // comment out because score is not reliable, some match does not return kill count
+/*       const killCountStr = (typeof score === 'string' ? score.split('|')[0] : '');
+      const killCountArr = typeof killCountStr === 'string' && killCountStr.length > 0
+        ? killCountStr.split('-').map(x => parseInt(x.trim(), 10))
+        : [];
+
+      const totalKillCount = Array.isArray(killCountArr) ? killCountArr.reduce((sum, val) => sum + (Number.isInteger(val) ? val : 0), 0) : 0;
+
+      if (totalKillCount < 3 && polymarketTagIds[0]!==PolymarketTagIds.DOTA_2) return false;
+ */      
+
+      if (market && typeof market === 'object') {
+        if (period==='1'+periodSuffixStr && market.groupItemTitle === gameOrMapPrefix +' 1 Winner') {
+          return true;
+        }
+        if (period==='2'+periodSuffixStr && market.groupItemTitle === gameOrMapPrefix +' 2 Winner') {
+          return true;
+        }
+        if (period==='3'+periodSuffixStr && market.groupItemTitle === matchWinnerString) {
+          return true;
+        }
+        if (period==='4'+periodSuffixStr && market.groupItemTitle === gameOrMapPrefix +' 4 Winner') {
+          return true;
+        }
+        if (period==='5'+periodSuffixStr && market.groupItemTitle === matchWinnerString) {
+          return true;
+        }
+      }
+      return false;
+    }
+    default:
+      return false;
+  }
+}
+
+async function dominantBracketDeployer(polymarketTagIds: string[], amountCapitalToDeployUsd: number = 10) {
   const outputArr: string[] = [];
   const ongoingEvents = await fetchLiveEventsByTagId(polymarketTagIds);
-
   if (Array.isArray(ongoingEvents.events)) {
 
     for (const event of ongoingEvents.events) {
+
       if (Array.isArray(event.markets)) {
-        const liquidMarkets = event.markets.filter((market: any) => {
+
+        const liquidMoneyLineMarkets = event.markets.filter((market: any) => {
+
+          const isMarketConditionMet = mapMarketCondition(polymarketTagIds, event.score, event.period, market)
+
           const liquidity = typeof market.liquidity === 'string'
             ? parseFloat(market.liquidity)
             : market.liquidity;
-          return liquidity > 5000;   //10k
+
+          const volume = typeof market.volume === 'string'
+            ? parseFloat(market.volume)
+            : market.volume;
+
+          //return liquidity > 1000 && market.sportsMarketType ==='moneyline';
+          return liquidity > 500 && volume > 2000 && isMarketConditionMet;
         });
 
+        //console.log(liquidMoneyLineMarkets)
 
-        for (const market of liquidMarkets) {
+        for (const market of liquidMoneyLineMarkets) {
 
           // call get to get the latest version, because the one from event is stale
           // Fetch latest market data from Polymarket API by market.id
-          const getMarketUrl = `https://gamma-api.polymarket.com/markets/${market.id}`;
+/*           const getMarketUrl = `https://gamma-api.polymarket.com/markets/${market.id}`;
           let latestMarket;
           try {
             const latestMarketResp = await fetch(getMarketUrl);
@@ -1006,39 +1357,59 @@ async function dominantBracketDeployer(polymarketTagIds: string[]) {
             console.error(`Failed to fetch latest market ${market.id}:`, e);
             latestMarket = market; // fallback to original if failed
           }
-
-          const clobTokenIdsArr = Array.isArray(latestMarket.clobTokenIds) ? latestMarket.clobTokenIds : JSON.parse(latestMarket.clobTokenIds ?? '[]');
+ */
+          const clobTokenIdsArr = Array.isArray(market.clobTokenIds) ? market.clobTokenIds : JSON.parse(market.clobTokenIds ?? '[]');
           let [clobTokenIdLeft, clobTokenIdRight] = [...clobTokenIdsArr];
 
-          const outcomePricesArr = Array.isArray(latestMarket.outcomePrices) ? latestMarket.outcomePrices : JSON.parse(latestMarket.outcomePrices ?? '[]');
-          let [outcomePriceLeft, outcomePriceRight] = [...outcomePricesArr];
+          const getPriceUrl = `https://clob.polymarket.com/prices`;
+          let latestPrices;
 
-          const outcomePriceNumberLeft = Number(outcomePriceLeft);
-          const outcomePriceNumberRight = Number(outcomePriceRight);
+          const options = {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify([
+              {token_id: clobTokenIdLeft, side: 'SELL'},
+              {token_id: clobTokenIdRight, side: 'SELL'}
+            ])
+          };
+
+          try {
+            const latestPricesResp = await fetch(getPriceUrl, options);
+            if (!latestPricesResp.ok) {
+              throw new Error(`HTTP error! status: ${latestPricesResp.status}`);
+            }
+            latestPrices = await latestPricesResp.json();
+          } catch (e) {
+            console.error(`Failed to fetch latest market ${market.id}:`, e);
+            latestPrices = market; // fallback to original if failed
+          }
+          
+          const outcomePriceNumberLeft = Number(latestPrices[clobTokenIdLeft].SELL);
+          const outcomePriceNumberRight = Number(latestPrices[clobTokenIdRight].SELL);
+          
+          //console.log(event.id, ' ', market.id, ' ', market.question, ' ', market.outcomes, ' ', market.outcomePrices, ' ', market.liquidity);
 
           // check left
-          let dominantOutcomeTokenId = !isNaN(outcomePriceNumberLeft) && outcomePriceNumberLeft >= 0.92 && outcomePriceNumberLeft <= 0.98 ? clobTokenIdLeft : undefined;
-          
+          let dominantOutcomeTokenId = !isNaN(outcomePriceNumberLeft) && outcomePriceNumberLeft >= 0.95 && outcomePriceNumberLeft <= 0.995 ? clobTokenIdLeft : undefined;
+
           // check right
           if (dominantOutcomeTokenId === undefined) {
-            dominantOutcomeTokenId = (!isNaN(outcomePriceNumberRight) && outcomePriceNumberRight >= 0.92 && outcomePriceNumberRight <= 0.98) ? clobTokenIdRight : undefined;
+            dominantOutcomeTokenId = (!isNaN(outcomePriceNumberRight) && outcomePriceNumberRight >= 0.95 && outcomePriceNumberRight <= 0.995) ? clobTokenIdRight : undefined;
           }
-     
+
           if (dominantOutcomeTokenId !== undefined) {
+            //console.log(event.id, ' ', market.id, ' ', market.question, ' ', market.outcomes, ' ', market.outcomePrices, ' ', market.liquidity);
             outputArr.push(dominantOutcomeTokenId);
           }
 
-          //if (typeof market.question === 'string' && market.question.includes('Raptor')) {
-          //console.log(event.id, ' ', latestMarket.id, ' ', latestMarket.question, ' ' ,latestMarket.outcomes, ' ', latestMarket.outcomePrices, ' ', latestMarket.liquidity);
-          //}
         }
       }
     }
   }
-  const amountCapitalToDeployUsd: number = 10;
+
   //console.log(outputArr)
   if (outputArr.length > 0) {
-    await postOrders(outputArr, amountCapitalToDeployUsd);
+   await postOrders(outputArr, amountCapitalToDeployUsd);
   }
 
   //}
@@ -1144,7 +1515,7 @@ async function getBracketOutcomePrice(seriesId: string, maxTemperature: number, 
 
 async function weatherMajorModelsScanner() {
   // Example usage
-  const targetDate = "2026-04-28";
+  const targetDate = "2026-05-21";
   // Convert targetDate 
   const dateObj = new Date(targetDate);
   const monthLong = dateObj.toLocaleString("en-US", { month: "long" });
@@ -1157,8 +1528,8 @@ async function weatherMajorModelsScanner() {
   const icaoList = IcaoList;
   let flattenedResult: any[] = [];
 
-  const page = 2;
-  const take = 5;
+  const page = 3;
+  const take = 9;
   const start = (page - 1) * take;
   const end = start + take;
   for (const entry of icaoList.slice(start, end)) {
@@ -1187,25 +1558,25 @@ async function weatherMajorModelsScanner() {
       City: enumName,
       Icao: entry.icao,
       ...(Array.isArray(result) ? Object.fromEntries(result.map(r => [r.model, r.maxTemp])) : {}),
-      "Range + 1": (Array.isArray(result) && result.length >= 2)
-        ? (() => {
-          return `${tempOffset + minTemp} to ${tempOffset + maxTemp}`;
-        })()
-        : null,
+      /*       "Range + 1": (Array.isArray(result) && result.length >= 2)
+              ? (() => {
+                return `${tempOffset + minTemp} to ${tempOffset + maxTemp}`;
+              })()
+              : null,*/
       Unit: entry.unit,
-/*       "min bracket-1 %": await getBracketOutcomePrice(
-        entry.seriesId,
-        (tempOffset + minTemp) - 1,
-        entry.unit === 'celsius' ? 'C' : 'F',
-        targetDate
-      ),
-
-      "min bracket-2 %": await getBracketOutcomePrice(
-        entry.seriesId,
-        (tempOffset + minTemp) - 2,
-        entry.unit === 'celsius' ? 'C' : 'F',
-        targetDate
-      ) */
+      /*       "min bracket-1 %": await getBracketOutcomePrice(
+              entry.seriesId,
+              (tempOffset + minTemp) - 1,
+              entry.unit === 'celsius' ? 'C' : 'F',
+              targetDate
+            ),
+      
+            "min bracket-2 %": await getBracketOutcomePrice(
+              entry.seriesId,
+              (tempOffset + minTemp) - 2,
+              entry.unit === 'celsius' ? 'C' : 'F',
+              targetDate
+            ) */
     }
 
     flattenedResult.push(newflattenedResult);
@@ -1216,24 +1587,54 @@ async function weatherMajorModelsScanner() {
 
 // If this file is run directly (e.g. with ts-node), execute the fetch.
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  //weatherMetarTrendChecker();
 
   //weatherByMetarData();
+  
   //weatherByMetarTiming();
+
   //weatherLiquidator();
 
   //weatherDeadBracketDeployer();
 
   //weatherMajorModelsScanner();
 
+  //endingSoonMarketScanner();
+  
+  //endingSoonEventsScanner();
+
   // separate to different task scheduler
-  //dominantBracketDeployer([PolymarketTagIds.NBA]);
-  //dominantBracketDeployer([PolymarketTagIds.Tennis]);
-  dominantBracketDeployer([PolymarketTagIds.Counter_Strike_2]);
+  const amountCapitalToDeployUsd: number = 5;  
+
+  //dominantBracketDeployer([PolymarketTagIds.NBA], amountCapitalToDeployUsd);
+  //dominantBracketDeployer([PolymarketTagIds.MLB], amountCapitalToDeployUsd);
+  //dominantBracketDeployer([PolymarketTagIds.NHL], amountCapitalToDeployUsd);
+
+  //dominantBracketDeployer([PolymarketTagIds.TENNIS], amountCapitalToDeployUsd);  
+  //dominantBracketDeployer([PolymarketTagIds.WNBA], amountCapitalToDeployUsd);  
+
+  //dominantBracketDeployer([PolymarketTagIds.Saudi_Professional_League]);
+  //dominantBracketDeployer([PolymarketTagIds.UCL]);
+
+  //dominantBracketDeployer([PolymarketTagIds.Copa_Sudamericana]);
+  //dominantBracketDeployer([PolymarketTagIds.Libertadores]);
+  //dominantBracketDeployer([PolymarketTagIds.Japan_J_League]);
+  //dominantBracketDeployer([PolymarketTagIds.Indian_Premier_League]);
+  //dominantBracketDeployer([PolymarketTagIds.Chinese_Super_League], amountCapitalToDeployUsd);
+
+  dominantBracketDeployer([PolymarketTagIds.VALORANT], amountCapitalToDeployUsd);
+  //dominantBracketDeployer([PolymarketTagIds.COUNTER_STRIKE_2], amountCapitalToDeployUsd);
+  //dominantBracketDeployer([PolymarketTagIds.LEAGUE_OF_LEGENDS], amountCapitalToDeployUsd);
+  //dominantBracketDeployer([PolymarketTagIds.DOTA_2], amountCapitalToDeployUsd);
+
+  //dominantBracketDeployer([PolymarketTagIds.Japan_J2_League], amountCapitalToDeployUsd);
+  //dominantBracketDeployer([PolymarketTagIds.KBO], amountCapitalToDeployUsd);
+
+
 
   //elonTweetsDeadBracketDeployer();
   //weatherDaily();
   //stocksDaily();
-  //cryptos(CryptoSeriesIds.BITCOIN_5MINS);
-  //cryptos(CryptoSeriesIds.BITCOIN_15MINS);
+  //cryptos(CryptoSeriesIds.ETHEREUM_5min);
+  //cryptos(CryptoSeriesIds.BITCOIN_5min);
 }
+

@@ -152,13 +152,13 @@ $cityTz = [System.TimeZoneInfo]::FindSystemTimeZoneById($cityTzId)
 $hkTz = [System.TimeZoneInfo]::FindSystemTimeZoneById("China Standard Time")
 $todayInCity = [System.TimeZoneInfo]::ConvertTime((Get-Date), $cityTz).Date
 $targetTimes = @(
+  @{ Hour = 13; Minute = 25 },
+  @{ Hour = 14; Minute = 0  },
+  @{ Hour = 14; Minute = 30 },
   @{ Hour = 15; Minute = 0 },
   @{ Hour = 15; Minute = 30 },
-  @{ Hour = 16; Minute = 0 },
-  @{ Hour = 16; Minute = 30 },
-  @{ Hour = 17; Minute = 0 },
-  @{ Hour = 17; Minute = 30 },
-  @{ Hour = 18; Minute = 0 }
+  @{ Hour = 16; Minute = 0 }
+  @{ Hour = 16; Minute = 30 }
 )
 $triggerTimeValues = @()
 

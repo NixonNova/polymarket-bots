@@ -29,7 +29,7 @@
   { "seriesId": "11345", "icao": "LEMD", "timezone": "Europe/Madrid", "tzOffset": 2, "city": "MADRID", "unit": "celsius" },
   { "seriesId": "11343", "icao": "LIMC", "timezone": "Europe/Rome", "tzOffset": 2, "city": "MILAN", "unit": "celsius" },
   { "seriesId": "11507", "icao": "EHAM", "timezone": "Europe/Amsterdam", "tzOffset": 2, "city": "AMSTERDAM", "unit": "celsius" },
-  { "seriesId": "11168", "icao": "LFPG", "timezone": "Europe/Paris", "tzOffset": 2, "city": "PARIS", "unit": "celsius" },
+  { "seriesId": "11168", "icao": "LFPB", "timezone": "Europe/Paris", "tzOffset": 2, "city": "PARIS", "unit": "celsius" },
   { "seriesId": "11516", "icao": "FACT", "timezone": "Africa/Johannesburg", "tzOffset": 2, "city": "CAPE_TOWN", "unit": "celsius" },
   { "seriesId": "10006", "icao": "EGLC", "timezone": "Europe/London", "tzOffset": 1, "city": "LONDON", "unit": "celsius" },
   { "seriesId": "11515", "icao": "DNMM", "timezone": "Africa/Lagos", "tzOffset": 1, "city": "LAGOS", "unit": "celsius" },
